@@ -79,6 +79,11 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.afollestad.materialdialogs.MaterialDialog;
 import com.pixplicity.easyprefs.library.Prefs;
+import com.snowplowanalytics.snowplow.Snowplow;
+import com.snowplowanalytics.snowplow.controller.TrackerController;
+import com.snowplowanalytics.snowplow.event.Event;
+import com.snowplowanalytics.snowplow.event.ScreenView;
+
 import de.greenrobot.event.EventBus;
 import de.keyboardsurfer.android.widget.crouton.Crouton;
 import de.keyboardsurfer.android.widget.crouton.Style;
@@ -124,6 +129,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.UUID;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 
@@ -226,6 +233,10 @@ public class ListFragment extends BaseFragment implements OnViewTouchedListener,
 
     // Replace listview with Mr. Jingles if it is empty
     binding.list.setEmptyView(binding.emptyList);
+
+    TrackerController tracker = Snowplow.getDefaultTracker();
+    Event event = new ScreenView("ViewList", UUID.randomUUID());
+    tracker.track(event);
 
     return view;
   }

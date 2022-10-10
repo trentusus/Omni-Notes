@@ -60,6 +60,11 @@ import com.afollestad.materialdialogs.MaterialDialog;
 import com.afollestad.materialdialogs.folderselector.FolderChooserDialog;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.pixplicity.easyprefs.library.Prefs;
+import com.snowplowanalytics.snowplow.Snowplow;
+import com.snowplowanalytics.snowplow.controller.TrackerController;
+import com.snowplowanalytics.snowplow.event.Event;
+import com.snowplowanalytics.snowplow.event.ScreenView;
+
 import it.feio.android.omninotes.async.DataBackupIntentService;
 import it.feio.android.omninotes.helpers.AppVersionHelper;
 import it.feio.android.omninotes.helpers.BackupHelper;
@@ -80,6 +85,8 @@ import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.List;
+import java.util.UUID;
+
 import org.apache.commons.lang3.ArrayUtils;
 
 
@@ -100,6 +107,15 @@ public class SettingsFragment extends PreferenceFragmentCompat {
               .valueOf(getArguments().get(XML_NAME)));
     }
     addPreferencesFromResource(xmlId);
+
+    TrackerController tracker = Snowplow.getDefaultTracker();
+    Event event;
+    if (getArguments() != null) {
+      event = new ScreenView(String.valueOf(getArguments().get(XML_NAME)), UUID.randomUUID());
+    } else {
+      event = new ScreenView("settings_screen", UUID.randomUUID());
+    }
+    tracker.track(event);
   }
 
   @Override

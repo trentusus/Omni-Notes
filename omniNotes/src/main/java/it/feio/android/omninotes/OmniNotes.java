@@ -17,24 +17,52 @@
 
 package it.feio.android.omninotes;
 
+import static com.snowplowanalytics.snowplow.internal.utils.Util.addToMap;
 import static it.feio.android.omninotes.utils.Constants.PACKAGE;
 import static it.feio.android.omninotes.utils.ConstantsBase.PREF_LANG;
 
 import android.content.Context;
 import android.content.res.Configuration;
 import android.os.StrictMode;
-import android.text.TextUtils;
 import androidx.multidex.MultiDexApplication;
 import com.pixplicity.easyprefs.library.Prefs;
+import com.snowplowanalytics.snowplow.Snowplow;
+import com.snowplowanalytics.snowplow.configuration.EmitterConfiguration;
+import com.snowplowanalytics.snowplow.configuration.GdprConfiguration;
+import com.snowplowanalytics.snowplow.configuration.GlobalContextsConfiguration;
+import com.snowplowanalytics.snowplow.configuration.NetworkConfiguration;
+import com.snowplowanalytics.snowplow.configuration.SessionConfiguration;
+import com.snowplowanalytics.snowplow.configuration.TrackerConfiguration;
+import com.snowplowanalytics.snowplow.controller.TrackerController;
+import com.snowplowanalytics.snowplow.event.Event;
+import com.snowplowanalytics.snowplow.event.Structured;
+import com.snowplowanalytics.snowplow.globalcontexts.GlobalContext;
+import com.snowplowanalytics.snowplow.internal.constants.Parameters;
+import com.snowplowanalytics.snowplow.internal.constants.TrackerConstants;
+import com.snowplowanalytics.snowplow.network.HttpMethod;
+import com.snowplowanalytics.snowplow.network.RequestCallback;
+import com.snowplowanalytics.snowplow.payload.SelfDescribingJson;
+import com.snowplowanalytics.snowplow.util.Basis;
+import com.snowplowanalytics.snowplow.util.TimeMeasure;
+
 import it.feio.android.omninotes.helpers.LanguageHelper;
 import it.feio.android.omninotes.helpers.notifications.NotificationsHelper;
 import org.acra.ACRA;
-import org.acra.config.CoreConfigurationBuilder;
-import org.acra.config.HttpSenderConfigurationBuilder;
-import org.acra.config.ToastConfigurationBuilder;
-import org.acra.sender.HttpSender.Method;
+import org.acra.annotation.AcraCore;
+import org.acra.annotation.AcraHttpSender;
+import org.acra.annotation.AcraToast;
+import org.acra.sender.HttpSender;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 
+@AcraCore(buildConfigClass = BuildConfig.class)
+@AcraHttpSender(uri = BuildConfig.CRASH_REPORTING_URL,
+    httpMethod = HttpSender.Method.POST)
+@AcraToast(resText = R.string.crash_toast)
 public class OmniNotes extends MultiDexApplication {
 
   private static Context mContext;
@@ -50,7 +78,8 @@ public class OmniNotes extends MultiDexApplication {
   @Override
   protected void attachBaseContext(Context base) {
     super.attachBaseContext(base);
-    initAcra();
+    ACRA.init(this);
+    ACRA.getErrorReporter().putCustomData("TRACEPOT_DEVELOP_MODE", isDebugBuild() ? "1" : "0");
   }
 
   @Override
@@ -60,27 +89,67 @@ public class OmniNotes extends MultiDexApplication {
     initSharedPreferences();
     enableStrictMode();
     new NotificationsHelper(this).initNotificationChannels();
+    TrackerConfiguration trackerConfiguration = new TrackerConfiguration("salesAndroidApp")
+            .sessionContext(true)
+            .platformContext(true)
+            .applicationContext(true)
+            .screenContext(true)
+            .lifecycleAutotracking(true)
+            .screenViewAutotracking(false)
+            .exceptionAutotracking(true)
+            .installAutotracking(true);
+    EmitterConfiguration emitterConfiguration = new EmitterConfiguration()
+            .requestCallback(getRequestCallback())
+            .threadPoolSize(20)
+            .emitRange(500)
+            .byteLimitPost(52000);
+    NetworkConfiguration networkConfiguration = new NetworkConfiguration("https://aaebce57-0848-493b-a528-143ec143e4c7.app.try-snowplow.com", HttpMethod.POST);
+    SessionConfiguration sessionConfiguration = new SessionConfiguration(
+            new TimeMeasure(30, TimeUnit.SECONDS),
+            new TimeMeasure(30, TimeUnit.SECONDS)
+    );
+    GdprConfiguration gdprConfiguration = new GdprConfiguration(
+            Basis.CONSENT,
+            "someId",
+            "0.1.0",
+            "this is a demo document description"
+    );
+    GlobalContextsConfiguration gcConfiguration = new GlobalContextsConfiguration(null);
+    Map<String, Object> pairs = new HashMap<>();
+    addToMap(Parameters.APP_VERSION, "0.3.0", pairs);
+    addToMap(Parameters.APP_BUILD, "3", pairs);
+    gcConfiguration.add("ruleSetExampleTag", new GlobalContext(Collections.singletonList(new SelfDescribingJson(TrackerConstants.SCHEMA_APPLICATION, pairs))));
+
+    TrackerController tracker = Snowplow.createTracker(mContext,
+            "appTracker",
+            networkConfiguration,
+            trackerConfiguration,
+            emitterConfiguration,
+            sessionConfiguration,
+            gdprConfiguration,
+            gcConfiguration
+    );
+    Event event = new Structured("Category_example", "Action_example");
+    tracker.track(event);
+
   }
 
-  private void initAcra() {
-    if (!TextUtils.isEmpty(BuildConfig.CRASH_REPORTING_URL)) {
-      HttpSenderConfigurationBuilder httpBuilder = new HttpSenderConfigurationBuilder()
-          .withUri(BuildConfig.CRASH_REPORTING_URL)
-          .withBasicAuthLogin(BuildConfig.CRASH_REPORTING_LOGIN)
-          .withBasicAuthPassword(BuildConfig.CRASH_REPORTING_PASSWORD)
-          .withHttpMethod(Method.POST)
-          .withEnabled(true);
-
-      ToastConfigurationBuilder toastBuilder = new ToastConfigurationBuilder()
-          .withText(this.getString(R.string.crash_toast))
-          .withEnabled(true);
-
-      CoreConfigurationBuilder builder = new CoreConfigurationBuilder()
-          .withPluginConfigurations(httpBuilder.build(), toastBuilder.build());
-
-      ACRA.init(this, builder);
-      ACRA.getErrorReporter().putCustomData("TRACEPOT_DEVELOP_MODE", isDebugBuild() ? "1" : "0");
-    }
+  private RequestCallback getRequestCallback() {
+    return new RequestCallback() {
+      @Override
+      public void onSuccess(int successCount) {
+        System.out.println("Emitter Send Success:\n " +
+                "- Events sent: " + successCount + "\n");
+        System.out.println(successCount);
+      }
+      @Override
+      public void onFailure(int successCount, int failureCount) {
+        System.out.println("Emitter Send Failure:\n " +
+                "- Events sent: " + successCount + "\n " +
+                "- Events failed: " + failureCount + "\n");
+        System.out.println(successCount);
+      }
+    };
   }
 
   private void initSharedPreferences() {

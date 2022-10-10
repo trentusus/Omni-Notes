@@ -116,6 +116,11 @@ import com.afollestad.materialdialogs.MaterialDialog;
 import com.neopixl.pixlui.components.edittext.EditText;
 import com.pixplicity.easyprefs.library.Prefs;
 import com.pushbullet.android.extension.MessagingExtension;
+import com.snowplowanalytics.snowplow.Snowplow;
+import com.snowplowanalytics.snowplow.controller.TrackerController;
+import com.snowplowanalytics.snowplow.event.Event;
+import com.snowplowanalytics.snowplow.event.ScreenView;
+
 import de.greenrobot.event.EventBus;
 import de.keyboardsurfer.android.widget.crouton.Style;
 import it.feio.android.checklistview.exceptions.ViewNotSupportedException;
@@ -183,6 +188,8 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
+
 import org.apache.commons.collections4.CollectionUtils;
 import rx.Observable;
 
@@ -301,6 +308,9 @@ public class DetailFragment extends BaseFragment implements OnReminderPickedList
 
   @Override
   public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    TrackerController tracker = Snowplow.getDefaultTracker();
+    Event event = new ScreenView("ViewNote", UUID.randomUUID());
+    tracker.track(event);
     binding = FragmentDetailBinding.inflate(inflater, container, false);
     return binding.getRoot();
   }
