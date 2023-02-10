@@ -103,7 +103,7 @@ public class OmniNotes extends MultiDexApplication {
             .threadPoolSize(20)
             .emitRange(500)
             .byteLimitPost(52000);
-    NetworkConfiguration networkConfiguration = new NetworkConfiguration("https://aaebce57-0848-493b-a528-143ec143e4c7.app.try-snowplow.com", HttpMethod.POST);
+    NetworkConfiguration networkConfiguration = new NetworkConfiguration("https://com-snplow-sales-gcp-prod1.mini.snplow.net", HttpMethod.POST);
     SessionConfiguration sessionConfiguration = new SessionConfiguration(
             new TimeMeasure(30, TimeUnit.SECONDS),
             new TimeMeasure(30, TimeUnit.SECONDS)
